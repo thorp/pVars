@@ -1,0 +1,30 @@
+nvc++ -acc -gpu=managed -Minfo hello_acc.cpp
+nvc++ -acc -gpu=managed -Minfo -Mneginfo -ta=tesla_cc75 parlate.cpp parlate_test.cpp
+
+nvaccelinfo
+nvidia-smi
+nvidia-smi -q
+
+nvc++ -acc -gpu=managed -Minfo pvars.cpp pvars_test.cpp
+
+Documentation should include:
+
+    Description of what the program/library is supposed to do. What is it expected to be used for.
+
+    What is the user API, how does one use the the program/library - including tutorials and examples.
+
+    High level description of implementation strategy
+
+    What are the design decisions
+
+    What is the rationale/motivation for these decisions
+
+Documentation should not include:
+
+    Implementation details. These should be in code itself. If the code is not obvious, then either the code should be changed or comments added.
+
+    Reference to any private implementation details.
+
+
+# Controlling the number of threads in 
+You can control how many threads the program will use to run the parallel compute regions with the environment variable ACC_NUM_CORES. The default is to use all available cores on the system. For Linux targets, the runtime will launch as many threads as physical cores (not hyper-threaded logical cores). OpenACC gang-parallel loops run in parallel across the threads. If you have an OpenACC parallel construct with a num_gangs(200) clause, the runtime will take the minimum of the num_gangs argument and the number of cores on the system, and launch that many threads. That avoids the problem of launching hundreds or thousands of gangs, which makes sense on a GPU but which would overload a multicore CPU.
