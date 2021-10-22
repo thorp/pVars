@@ -170,9 +170,8 @@ int main()
 
     float testRF_var1= p_maxTest[5];
 
-    if (
-	testSuite.verifyFailed( (p_maxTest[5]>=0.0)&(p_maxTest[5]<=1.0),
-			"Invalid random number generated.") )
+    if ( testSuite.verify ( (p_maxTest[5]>=0.0)&(p_maxTest[5]<=1.0),
+			    "Invalid random number generated.") )
       {
 	std::cout <<"Invalid random number: " <<testRF_var1 <<std::endl;
       }
@@ -198,7 +197,7 @@ int main()
     }
 
     if (
-	testSuite.verifyFailed( abs((fmadd_result/sum)-1) < 1.0e-10,
+	testSuite.verify ( abs((fmadd_result/sum)-1) < 1.0e-10,
 				"Invalid parallel reduce_multAdd() result.") )
       {
 	cout << "[Parallel result: " <<fmadd_result <<"]" <<endl;

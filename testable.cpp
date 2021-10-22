@@ -78,7 +78,7 @@ void testable::test(std::string testNameArg)
 }
 
 
-void testable::verify( bool x, std::string msg)
+bool testable::verify( bool x, std::string msg)
 {
   verifications++;
   
@@ -103,11 +103,6 @@ void testable::verify( bool x, std::string msg)
       }
     verificationsPassed++;
   }
-}
 
-
-bool testable::verifyFailed( bool x, std::string msg)
-{
-    verify( x, msg);
-    return !x;
+  return !x;
 }

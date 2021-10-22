@@ -43,6 +43,5 @@ public:
   testable(std::string testSuiteNameArg);
   ~testable();
   void test(std::string testNameArg);
-  void verify( bool x, std::string msg);
-  bool verifyFailed( bool x, std::string msg);
+  bool verify( bool x, std::string msg);
 };
