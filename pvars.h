@@ -353,8 +353,8 @@ inline std::string name(){return #FUNC;} }
       _allElementsActive= false;
       
 #pragma acc kernels loop independent
-    for (int i=0; i!=countElements(); ++i)
-      _activeSet[i] &= funcTest_argPS(tmpA[i]);
+      for (int i=0; i!=countElements(); ++i)
+	_activeSet[i] &= funcTest_argPS(tmpA[i]);
     }
 
     // Policy object for testing the relationship of pvars to pvar
@@ -1453,7 +1453,7 @@ inline std::string name(){return #FUNC;} }
       // Copy back data from power of 2 array to returned varible.
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i)
-	_v[i]= (_active[i])? tmpX[i]-1: -1;
+	_v[i]= (_active[i])? tmpX[i]-1: _v[i];
     }
     
     // End of pvar class
@@ -1674,12 +1674,13 @@ inline std::string name(){return #FUNC;} }
   template<typename T>
   T shape::subsetReduce_Sum(pvar<T>& a)
   {
-    T result{0.0};
+    T result{(T)0};
+    
     T* tmpA{a.getLinearizedData()};
-    uint* active= _activeSet;
+    uint* active= activeSet();
 
 #pragma acc parallel loop reduction(+:result)
-    for (int i=0; i!=countElements(); ++i){
+    for (int i=0; i<countElements(); ++i){
       result += (tmpA[i] * (T)active[i]);
     }
     
