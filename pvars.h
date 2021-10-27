@@ -1,3 +1,4 @@
+
 /*******************************************************************************
 
 pVars - The Parallel Variables Library
@@ -173,13 +174,13 @@ inline std::string name(){return #FUNC;} }
     }
     
   public:
-    /// Constructor- new shape derived from old
-    shape(shape* s);
-
     /// Constructor- new shape from data length
     shape(int x_size);
     //shape(int x_size, int y_size);
     //shape(int x_size, int y_size, int z_size);
+
+    /// Constructor- new shape derived from old
+    shape(shape* s);
 
     /// Count the number of elements in the pvar.
     inline int countElements() const{
@@ -500,17 +501,7 @@ inline std::string name(){return #FUNC;} }
       return (st*(idx/stPrev)) + stPrev+ (idx%stPrev);
     }
 
-  public:
-
-    /*
-      ----------------------------------------------------------------------
-      vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
-      Class Operations - Construct, copy, move, destruct, getters
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-      ----------------------------------------------------------------------
-    */
-
-    // Default constructor. Inits to 0.
+    // Internal use only. not presently part of API.
     pvar<T>(shape *s)
       : _v{new T[s-> countElements()]},
 	length{s-> countElements()},
@@ -521,26 +512,60 @@ inline std::string name(){return #FUNC;} }
 	_v[i]= (T) 0;
       }
     }
-
     
-    // Constructor. Inits to given value 'n'.
-    pvar(shape *s, T initVal)
-      : _v{new T[s-> countElements()]},
-	length{s-> countElements()},
-	myShape{s}
+
+  public:
+    /*!
+     *  Creates a pvar that conforms to the specified shape and type.
+     *  
+     *  This constructor will make a pvar of the specified shape.
+     *  It's operations will work seamlessly with other pvars of the 
+     *  same shape. The new pvar's data will be initiallized to (T)0.
+     */
+    pvar<T>(shape& s)
+      : _v{new T[s.countElements()]},
+	length{s.countElements()},
+	myShape{&s}
+    {
+#pragma acc kernels loop independent
+      for (int i=0; i!=length; ++i){
+	_v[i]= (T) 0;
+      }
+    }
+
+
+    /*!
+     *  Creates a pvar that conforms to the specified shape and type.
+     *  
+     *  This constructor will make a pvar of the specified shape.
+     *  It's operations will work seamlessly with other pvars of the 
+     *  same shape. The new pvar's data will be initiallized to the
+     *  scalar value (T)initVal.
+     */
+    pvar(shape& s, T initVal)
+      : _v{new T[s.countElements()]},
+	length{s.countElements()},
+	myShape{&s}
     {
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i){
 	_v[i]= initVal;
       }
     }
-    
       
-    // Constructor- Inits to index in dimension n.
-    pvar(shape *s, dimensionName n)
-      : _v{new T[s-> countElements()]},
-	length{s-> countElements()},
-	myShape{s}
+
+    /*!
+     *  Creates a pvar that conforms to the specified shape and type.
+     *  
+     *  This constructor will make a pvar of the specified shape.
+     *  It's operations will work seamlessly with other pvars of the 
+     *  same shape. The new pvar's data will be initiallized to the
+     *  axis index in dimension n.
+     */
+    pvar(shape& s, dimensionName n)
+      : _v{new T[s.countElements()]},
+	length{s.countElements()},
+	myShape{&s}
     {
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i){
@@ -549,11 +574,26 @@ inline std::string name(){return #FUNC;} }
     }
 
 
-    // Destructor
+    /*!
+     *  Destroys this pvar removing all associated data.
+     *  
+     *  This action conforms with RAII principles and cleans up
+     *  internally heap allocated data and pointers.
+     */
     inline ~pvar() {delete[] _v;}
 
 
-    // Copy constructor - const
+    /*!
+     *  Creates a pvar that conforms to the shape and type of the argument.
+     *  
+     *  This constructor will make a pvar based on the pvar argument.
+     *  It's operations will work seamlessly with other pvars of the 
+     *  same shape. The new pvar's data will be initiallized to the
+     *  the values in the original pvar.
+     *
+     *  The const designator indicates that the copy constructor will
+     *  access the original through the public interface.
+     */
     template <typename U>
     pvar<T>(const pvar<U>& a )
       : _v{new T[a.size()]},
@@ -565,7 +605,15 @@ inline std::string name(){return #FUNC;} }
       }
     }
 
-    // Copy constructor - non-const
+
+    /*!
+     *  Creates a pvar that conforms to the shape and type of the argument.
+     *  
+     *  This constructor will make a pvar based on the pvar argument.
+     *  It's operations will work seamlessly with other pvars of the 
+     *  same shape. The new pvar's data will be initiallized to the
+     *  the values in the original pvar.
+     */
     template <typename U>
     pvar<T>( pvar<U>& a )
       : _v{new T[a.length]},
@@ -625,7 +673,13 @@ inline std::string name(){return #FUNC;} }
     }
 
     
-    // Move constructor
+    /*!
+     *  Creates a pvar by moving the data pointer from the old pvar.
+     *  
+     *  This move constructor will make a pvar from the original
+     *  pvar. It is used in calculations on the RHS of an assignment.
+     *  (Questions? Research "C++ Move Constructors")
+     */
     pvar(pvar&& a)
       :_v{a._v}, length{a.length}
     {
@@ -634,7 +688,13 @@ inline std::string name(){return #FUNC;} }
     }
 
     
-    // Move assignment
+    /*!
+     *  Assigns a pvar to the LHS by moving the data pointer from the RHS pvar.
+     *  
+     *  This move constructor will make a pvar from the original
+     *  pvar. It is used in calculations on the RHS of an assignment.
+     *  (Questions? Research "C++ Move Assignment")
+     */
     pvar& operator=(pvar&& a){
       _v= std::move(a._v);
       length=std::move(a.length);
@@ -709,7 +769,7 @@ inline std::string name(){return #FUNC;} }
     pvar& operator+(T x)
     {
       //make a new pvar.
-      pvar* plv = new pvar(this-> getShape());
+      pvar* plv = new pvar(myShape);
       plv-> length= length;
       T* tmpV{plv -> _v};
 

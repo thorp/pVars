@@ -52,14 +52,13 @@ int main()
   // Test creating shapes.
   testSuite.test("Shape Creation");
 
-  shape v100(100);
-  shape* vector100Shape; //= new shape(100);
-  vector100Shape= &v100;
-  testSuite.verify( vector100Shape, "shape vector100Shape not created");
+  shape vector100Shape(100);
+  testSuite.verify( vector100Shape.countElements() == 100,
+		    "shape vector100Shape has incorrect size");
 
-  shape* vectorShape= new shape(65536*1024);
-  testSuite.verify( vectorShape, "shape vectorShape not created");
-
+  shape vectorShape(65536*1024);
+  testSuite.verify( vectorShape.countElements() == 65536*1024,
+		    "shape vectorShape has incorrect size");
   
   
   // Test Initialization
@@ -165,7 +164,7 @@ int main()
     testSuite.verify( p_maxTest[5]==0.0,
 		      "pVar p_maxTest not initialized correctly.");
 
-    vectorShape-> initPseudoRandom();
+    vectorShape.initPseudoRandom();
     p_maxTest.setToRandom();
 
     float testRF_var1= p_maxTest[5];
@@ -191,7 +190,7 @@ int main()
     // Serial reduction mult-add test
     double sum=0.0;
     double if2=0.0;
-    for (int i=0; i< vectorShape-> countElements(); ++i){
+    for (int i=0; i< vectorShape.countElements(); ++i){
       if2=(double)i;
       sum+= if2*if2;
     }
@@ -231,7 +230,7 @@ int main()
     int sum_result{0};
     sum_result= p_sumTest.reduce_Sum();
     
-    testSuite.verify( sum_result==(vectorShape->countElements()),
+    testSuite.verify( sum_result==(vectorShape.countElements()),
 		      "pVar.reduce_Sum() generated incorrect result.");
   }
 
@@ -287,7 +286,7 @@ int main()
 		      "int abs test: incorrect result.");
 
 
-    /// Test power(x)
+    // Test power(x)
     pvar<double> p_uniaryTest2(vectorShape, dimensionName::x);
     p_uniaryTest2= p_testData.power(2);
     testSuite.verify(abs(p_uniaryTest2[5]-std::pow(p_testData[5], 2)) < 1.0e-6,
@@ -316,7 +315,7 @@ int main()
   }
 
   
-  // Test a float and an int the binary operation.
+  // Test a float and an int in the binary operation.
   testSuite.test("Binary Operations");
   {
     pvar<float> binaryTest_a(vectorShape);
@@ -346,13 +345,13 @@ int main()
   // Test some of the binary ops.
   testSuite.test("Active Set");
   {
-    vectorShape-> resetActiveSet();
+    vectorShape.resetActiveSet();
 
     pvar<int> binaryIntResult(vectorShape);
     pvar<int> binaryIntTest(vectorShape, dimensionName::x);
     
-    vectorShape-> ge(binaryIntTest, 2);
-    testSuite.verify((binaryIntTest[14]>2)==(vectorShape-> activityStatus(14)),
+    vectorShape.ge(binaryIntTest, 2);
+    testSuite.verify((binaryIntTest[14]>2)==(vectorShape.activityStatus(14)),
 		     "Shape activityStatus set incorrectly.");
 
   
@@ -382,53 +381,47 @@ int main()
     
     // Test shape activityStatus() fcn
     //----------------------------------------------------------------------
-    vectorShape-> resetActiveSet();
+    vectorShape.resetActiveSet();
     
-    vectorShape-> eq(binaryIntTest, 14);
+    vectorShape.eq(binaryIntTest, 14);
 
-    testSuite.verify(vectorShape-> activityStatus(14),
+    testSuite.verify(vectorShape.activityStatus(14),
 		     "Activity status not true in eq()"); 
 
-    testSuite.verify(!vectorShape-> activityStatus(110),
+    testSuite.verify(!vectorShape.activityStatus(110),
 		     "Activity status not false in eq()");     
 
 
 
-    /*
-      pvar<int> binaryIntResult(vectorShape);  //remove
-      pvar<int> binaryIntTest(vectorShape, dimensionName::x);//remove
-      pvar<double> p_id(vectorShape, dimensionName::x); 
-    */
-
     // Test areAllElementsActive() fcn 
     //----------------------------------------------------------------------
-    vectorShape-> resetActiveSet();
+    vectorShape.resetActiveSet();
     pvar<double> p_id(vectorShape, dimensionName::x); 
 
-    testSuite.verify(vectorShape-> areAllElementsActive(),
+    testSuite.verify(vectorShape.areAllElementsActive(),
 		     "Test1: areAllElementsActive() should have returned TRUE.");     
     
-    vectorShape-> gt(p_id, -10.0); // set all elements with pid > (-10)
-    testSuite.verify(vectorShape-> areAllElementsActive(),
+    vectorShape.gt(p_id, -10.0); // set all elements with pid > (-10)
+    testSuite.verify(vectorShape.areAllElementsActive(),
 		     "Test2: areAllElementsActive() should have returned TRUE.");     
 
 
     // Test turning off some elements.
     //----------------------------------------------------------------------
-    vectorShape-> resetActiveSet();
-    vectorShape-> le(p_id, 10.0);
+    vectorShape.resetActiveSet();
+    vectorShape.le(p_id, 10.0);
 
     pvar<double> constAssignment(vectorShape, 8.0);
     constAssignment= 1.0;
 
     float fResult{0};
-    fResult= vectorShape-> subsetReduce_Sum(constAssignment);
+    fResult= vectorShape.subsetReduce_Sum(constAssignment);
 
     testSuite.verify( fResult == 11,
 		     "Wrong number of items in active set.");     
 
-    vectorShape-> gt(p_id, -10.0);
-    testSuite.verify(!vectorShape-> areAllElementsActive(),
+    vectorShape.gt(p_id, -10.0);
+    testSuite.verify(!vectorShape.areAllElementsActive(),
 		     "areAllElementsActive() should have returned False.");     
 
   
@@ -437,21 +430,21 @@ int main()
     fResult=0;
 
     // Continue with the prior active set
-    //vectorShape-> resetActiveSet();
-    vectorShape-> gt(p_id, 4.0);
+    //vectorShape.resetActiveSet();
+    vectorShape.gt(p_id, 4.0);
     
-    fResult= vectorShape-> subsetReduce_Min(p_id);
+    fResult= vectorShape.subsetReduce_Min(p_id);
 
     testSuite.verify( fResult == 5,
 		      "min() should return 5 for activeSet with 4<id<=10");
   
-    testSuite.verify( vectorShape-> countActiveElements() == 6,
+    testSuite.verify( vectorShape.countActiveElements() == 6,
 		      "Number of active elements should be 6.");
 
-    testSuite.verify(!vectorShape-> areAllElementsInactive(),
+    testSuite.verify(!vectorShape.areAllElementsInactive(),
 		     "Some elements should be active.");
     
-    testSuite.verify(!vectorShape-> areAllElementsActive(),
+    testSuite.verify(!vectorShape.areAllElementsActive(),
 		     "Some elements should be inactive.");
   }
 
@@ -459,16 +452,16 @@ int main()
     // Test subsetReduction MultAdd on even elements test
     // Sum the squares of all odd number < 100.
     //----------------------------------------------------------------------
-    vector100Shape->resetActiveSet();
+    vector100Shape.resetActiveSet();
     
     int imadd_result{0};
     pvar<int> testMA_var1(vector100Shape);
     pvar<int> testMA_selfAddress(vector100Shape, dimensionName::x);
 
     testMA_var1= testMA_selfAddress.mod(2);
-    vector100Shape-> eq(testMA_var1, 1);
+    vector100Shape.eq(testMA_var1, 1);
     
-    imadd_result= vector100Shape-> subsetReduce_MultAdd(testMA_selfAddress,
+    imadd_result= vector100Shape.subsetReduce_MultAdd(testMA_selfAddress,
 							testMA_selfAddress);
     
     int sum{0};
@@ -488,7 +481,7 @@ int main()
     int fromElementNumber{5};
     string msg{""};
 
-    vectorShape-> resetActiveSet();
+    vectorShape.resetActiveSet();
     spreadTest1dData.setToRandom();
     spreadTest1d= 
       spreadTest1dData.flood(fromElementNumber, dimensionName::x );
@@ -505,7 +498,7 @@ int main()
   
   // --TEST scanAdd() and shiftWithWrap()  
 #define _SHORT_VECTOR_LEN 11
-  shape* shortVectorShape= new shape(_SHORT_VECTOR_LEN);
+  shape shortVectorShape(_SHORT_VECTOR_LEN);
   
   {
     pvar<int> scanTest1dData(shortVectorShape);
@@ -518,7 +511,7 @@ int main()
     scanTest1d= scanTest1d.shiftWithWrap( 1, dimensionName::x );
 
     string msg{""};
-    for (auto i=0; i<(_SHORT_VECTOR_LEN); i++){
+    for (auto i=0; i< shortVectorShape.countElements(); i++){
       msg= "Scanned data is incorrect in element:"
 	+std::to_string(i) +" , (" +std::to_string(scanTest1d[i]) +")";
       testSuite.verify( scanTest1d[i] == ((i==0)?11:i), msg);
@@ -535,16 +528,16 @@ int main()
     // Turn on only the even elements
     evenElements.setToIndex(dimensionName::x);
     evenElements= evenElements.mod(2);
-    shortVectorShape-> eq(evenElements, 0);
+    shortVectorShape.eq(evenElements, 0);
   
     enumTest.enumerateActiveElements();
     
     string msg{""};
-    for (auto i=0; i < ( shortVectorShape-> countElements() ); ++i){
+    for (auto i=0; i < ( shortVectorShape.countElements() ); ++i){
       msg= "Enumeration " +std::to_string(i) +"is incorrect. Value: "
 	+std::to_string(enumTest[i]);
 
-      if (shortVectorShape-> activityStatus(i))
+      if (shortVectorShape.activityStatus(i))
 	{
 	  testSuite.verify( enumTest[i] == i/2, msg);
 	}
