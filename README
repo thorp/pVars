@@ -1,11 +1,20 @@
+* For standard c++17
+nvc++ -std=c++17 -stdpar -Minfo pvars.cpp pvars_test.cpp testable.cpp
+
+* For OPENACC
+nvc++ -std=c++17 -acc -gpu=managed -Minfo pvars.cpp pvars_test.cpp testable.cpp
+
+* Older OPENACC
+nvc++ -acc -gpu=managed -Minfo pvars.cpp pvars_test.cpp
 nvc++ -acc -gpu=managed -Minfo hello_acc.cpp
 nvc++ -acc -gpu=managed -Minfo -Mneginfo -ta=tesla_cc75 parlate.cpp parlate_test.cpp
 
+* For additional info
 nvaccelinfo
 nvidia-smi
 nvidia-smi -q
 
-nvc++ -acc -gpu=managed -Minfo pvars.cpp pvars_test.cpp
+
 
 Documentation should include:
 

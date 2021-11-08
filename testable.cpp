@@ -106,3 +106,9 @@ bool testable::verify( bool x, std::string msg)
 
   return !x;
 }
+
+
+bool testable::testFailed()
+{
+  return ( verificationsPassed != verifications );
+}

@@ -44,4 +44,5 @@ public:
   ~testable();
   void test(std::string testNameArg);
   bool verify( bool x, std::string msg);
+  bool testFailed();
 };

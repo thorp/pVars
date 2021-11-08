@@ -37,6 +37,10 @@ Ref: MIT License - https://opensource.org/licenses/MIT
 #include <ctime>
 #include <cassert>
 #include <string>
+#include <vector>
+#include <algorithm>
+#include <execution>
+#include <array>
 
 #define _PVARS_MACRO_STRING(y) #y
 
@@ -184,7 +188,8 @@ inline std::string name(){return #FUNC;} }
 
     /// Count the number of elements in the pvar.
     inline int countElements() const{
-      assert( shapeNameIs( shapeName::array_1d ) );
+      assert ( this );
+      //assert( shapeNameIs( shapeName::array_1d ) );
       return _dimensionSizes[0];
     }
 
@@ -230,6 +235,9 @@ inline std::string name(){return #FUNC;} }
       return b;
     }
 
+
+    /// Get pointer to self
+    inline shape* getPointerToSelf() { return this;}
     
     // **********************************************************************
     // * Related to Power of two data sets
@@ -490,7 +498,7 @@ inline std::string name(){return #FUNC;} }
   class pvar{
   private:
     T* _v;
-    int length;
+    int length; // const?
     shape* myShape;
 
     int inline _snarkleSrcAddr(int idx, int st, int stPrev) const{
@@ -504,6 +512,7 @@ inline std::string name(){return #FUNC;} }
     // Internal use only. not presently part of API.
     pvar<T>(shape *s)
       : _v{new T[s-> countElements()]},
+	_pvec{std::vector<T>(s->countElements(),(T) 0)},
 	length{s-> countElements()},
 	myShape{s}
     {
@@ -511,10 +520,13 @@ inline std::string name(){return #FUNC;} }
       for (int i=0; i!=length; ++i){
 	_v[i]= (T) 0;
       }
+
     }
     
 
   public:
+    std::vector<T> _pvec;
+
     /*!
      *  Creates a pvar that conforms to the specified shape and type.
      *  
@@ -524,9 +536,12 @@ inline std::string name(){return #FUNC;} }
      */
     pvar<T>(shape& s)
       : _v{new T[s.countElements()]},
+	_pvec{std::vector<T>(s.countElements(),(T) 0)},
 	length{s.countElements()},
-	myShape{&s}
+	myShape{s.getPointerToSelf()}
+	//myShape{s}
     {
+
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i){
 	_v[i]= (T) 0;
@@ -542,10 +557,12 @@ inline std::string name(){return #FUNC;} }
      *  same shape. The new pvar's data will be initiallized to the
      *  scalar value (T)initVal.
      */
-    pvar(shape& s, T initVal)
+    template<typename U>
+    pvar<T>(shape& s, U initVal)
       : _v{new T[s.countElements()]},
+	_pvec{std::vector<T>(s.countElements(),(T) initVal)},
 	length{s.countElements()},
-	myShape{&s}
+	myShape{s.getPointerToSelf()}
     {
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i){
@@ -564,13 +581,27 @@ inline std::string name(){return #FUNC;} }
      */
     pvar(shape& s, dimensionName n)
       : _v{new T[s.countElements()]},
-	length{s.countElements()},
-	myShape{&s}
+	_pvec{std::vector<T>(s.countElements(),(T) 0)},
+	length  {s.countElements()},
+	myShape{s.getPointerToSelf()}
     {
+
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i){
 	_v[i]= (T)i;
       }
+
+      std::vector<T> _tmpvec{std::vector<T>(s.countElements(),(T) 1)};
+      std::exclusive_scan(std::execution::par_unseq,
+			  _tmpvec.begin(),
+			  _tmpvec.end(),
+			  _pvec.begin(), (T) 0);
+      /*
+      for_each(std::execution::par_unseq, //std::execution::par_unseq,
+	       _pvec.begin(),
+	       _pvec.end(),
+	       [](T &n){ n=n-1; });
+      */
     }
 
 
@@ -584,7 +615,7 @@ inline std::string name(){return #FUNC;} }
 
 
     /*!
-     *  Creates a pvar that conforms to the shape and type of the argument.
+     *  Creates a pvar from another pvar.
      *  
      *  This constructor will make a pvar based on the pvar argument.
      *  It's operations will work seamlessly with other pvars of the 
@@ -592,40 +623,28 @@ inline std::string name(){return #FUNC;} }
      *  the values in the original pvar.
      *
      *  The const designator indicates that the copy constructor will
-     *  access the original through the public interface.
-     */
-    template <typename U>
-    pvar<T>(const pvar<U>& a )
-      : _v{new T[a.size()]},
-	length{a.size()}
-    {
-#pragma acc kernels loop independent
-      for (int i=0; i!=length; ++i){
-	_v[i]= (T) a[i];
-      }
-    }
-
-
-    /*!
-     *  Creates a pvar that conforms to the shape and type of the argument.
-     *  
-     *  This constructor will make a pvar based on the pvar argument.
-     *  It's operations will work seamlessly with other pvars of the 
-     *  same shape. The new pvar's data will be initiallized to the
-     *  the values in the original pvar.
+     *  not change the original.
      */
     template <typename U>
     pvar<T>( pvar<U>& a )
       : _v{new T[a.length]},
-	length{a.length}
+	_pvec{std::vector<T>( a.size(), (T) 0 )},
+	myShape{a.getShape()},
+	length{a.size()}
     {
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i){
 	_v[i]= (T) a._v[i];
       }
+
+      std::transform( std::execution::par_unseq,
+		      a._pvec.begin(),
+		      a._pvec.end(),
+		      _pvec.begin(),
+		      [](U tmp){return (T)tmp;} );
     }
     
-    
+
     // Copy assignment - const
     template <typename U>
     pvar<T>& operator=(const pvar<U>& a )
@@ -648,6 +667,10 @@ inline std::string name(){return #FUNC;} }
     template <typename U>
     pvar<T>& operator=(pvar<U>& a )
     {
+      assert(myShape);
+      assert(a.getShape());
+      assert( myShape->countElements() == a.getShape()->countElements() );
+
       T* p = new T[length];
 
 #pragma acc kernels loop independent
@@ -656,8 +679,13 @@ inline std::string name(){return #FUNC;} }
   
       delete[] _v;
       _v= p;
-      //length= a.length;
-  
+
+      std::transform( std::execution::par_unseq,
+		      a._pvec.begin(),
+		      a._pvec.end(),
+		      _pvec.begin(),
+		      [](U tmp){return (T)tmp;} );
+
       return(*this);
     }
 
@@ -668,6 +696,11 @@ inline std::string name(){return #FUNC;} }
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i)
 	_v[i]= a;
+
+      std::for_each(std::execution::par_unseq,
+	       _pvec.begin(),
+	       _pvec.end(),
+	       [a](T &n){ n= a; });
   
       return(*this);
     }
@@ -683,8 +716,11 @@ inline std::string name(){return #FUNC;} }
     pvar(pvar&& a)
       :_v{a._v}, length{a.length}
     {
+      std::cout <<"move cons rhs start";
+
       a._v= nullptr;
       a.length= 0;
+      
     }
 
     
@@ -695,12 +731,15 @@ inline std::string name(){return #FUNC;} }
      *  pvar. It is used in calculations on the RHS of an assignment.
      *  (Questions? Research "C++ Move Assignment")
      */
-    pvar& operator=(pvar&& a){
+    pvar& operator=(pvar&& a)
+    {
+      std::cout <<"move rhs start";
       _v= std::move(a._v);
       length=std::move(a.length);
       
       a._v= nullptr;
       a.length= 0;
+      std::cout <<"move rhs start";
 	
       return (*this);
     }
@@ -710,14 +749,23 @@ inline std::string name(){return #FUNC;} }
     T& operator[](int index){return _v[index];}
     T& operator[](int index) const {return _v[index];}
 
-    // Returns the number of elements. (redundant with shape.countElements()).
-    int size() const{return (length);}
+    // Returns the number of elements. (redundant with shape.countElements()).lements
+    int size() {return (length);}
 
     // Returns the shape of this pvar.
     shape* getShape() const{return myShape;}
 
     // Returns pointer to data_vector.
     inline T* getLinearizedData() const { return &_v[0]; }
+
+    /*!
+     *  Gets the value at a specific index in the pvar.
+     *  
+     *  Included temporarily for testing _pvec.
+     */
+    inline T getValueAt(int i) const { return _pvec.at(i); }
+
+
 
     /*
       ----------------------------------------------------------------------
@@ -734,7 +782,11 @@ inline std::string name(){return #FUNC;} }
       ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     */
 
-    // Create and ordered array of index values
+    /*!
+     *  Set each element in the pVar to the element's index.
+     *  
+     *  Details...
+     */
     void setToIndex(dimensionName dim){
       assert ( dim == dimensionName::x);
   
@@ -742,18 +794,14 @@ inline std::string name(){return #FUNC;} }
       for (int i=0; i!=length; ++i){
 	_v[i]= (T)i;
       }
+
+      std::vector<T> _tmpvec{std::vector<T>( length, (T) 1 )};
+      std::exclusive_scan(std::execution::par_unseq,
+			  _tmpvec.begin(),
+			  _tmpvec.end(),
+			  _pvec.begin(), (T) 0);
     }
 
-    // Element-wise: += an ordered array of index values
-    void addIndex(dimensionName dim){
-      assert ( dim == dimensionName::x);
-      assert( myShape-> shapeNameIs( shapeName::array_1d ) );
-
-#pragma acc kernels loop independent
-      for (int i=0; i!=length; ++i){
-	_v[i] += (T)i;
-      }
-    }
 
     /*
       ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -768,15 +816,22 @@ inline std::string name(){return #FUNC;} }
     /// handles type mismatches.
     pvar& operator+(T x)
     {
-      //make a new pvar.
-      pvar* plv = new pvar(myShape);
-      plv-> length= length;
+      // Make a new pvar to hold the RHS result.
+      pvar* plv{ new pvar<T>(myShape) };
+
       T* tmpV{plv -> _v};
 
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i)
 	tmpV[i]= _v[i] + x;
-  
+
+
+      std::transform( std::execution::par_unseq,
+		      _pvec.begin(),       // Src First
+		      _pvec.end(),         // Src Last
+		      plv-> _pvec.begin(), //Dest First
+		      [x](T tmp){return tmp + x;} );
+      
       return(*plv);
     }
 
@@ -857,6 +912,13 @@ inline std::string name(){return #FUNC;} }
       for (int i=0; i!=length; ++i)
 	tmpV[i]= _v[i] + (T) tmpW[i];
 
+      std::transform( std::execution::par_unseq,
+		      _pvec.begin(),       // Src1 First
+		      _pvec.end(),         // Src1 Last
+		      a._pvec.begin(),     // Src2 First
+		      plv-> _pvec.begin(), // Dest First
+		      [](T tmp1, U tmp2){return tmp1 + ((T)tmp2);} );
+      
       return(*plv);
     }
 
@@ -879,6 +941,13 @@ inline std::string name(){return #FUNC;} }
       for (int i=0; i!=length; ++i)
 	tmpV[i]= _v[i] - (T)tmpW[i];
   
+      std::transform( std::execution::par_unseq,
+		      _pvec.begin(),       // Src1 First
+		      _pvec.end(),         // Src1 Last
+		      a._pvec.begin(),     // Src2 First
+		      plv-> _pvec.begin(), // Dest First
+		      [](T tmp1, U tmp2){return tmp1 - ((T)tmp2);} );
+
       return(*plv);
     }
 
@@ -900,6 +969,13 @@ inline std::string name(){return #FUNC;} }
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i)
 	tmpV[i]= _v[i] * (T) tmpW[i];
+
+      std::transform( std::execution::par_unseq,
+		      _pvec.begin(),       // Src1 First
+		      _pvec.end(),         // Src1 Last
+		      a._pvec.begin(),     // Src2 First
+		      plv-> _pvec.begin(), // Dest First
+		      [](T tmp1, U tmp2){return tmp1 * ((T)tmp2);} );
     
       return(*plv);
     }
@@ -921,58 +997,17 @@ inline std::string name(){return #FUNC;} }
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i)
 	tmpV[i]= _v[i] / tmpW[i];
-    
+
+      std::transform( std::execution::par_unseq,
+		      _pvec.begin(),       // Src1 First
+		      _pvec.end(),         // Src1 Last
+		      a._pvec.begin(),     // Src2 First
+		      plv-> _pvec.begin(), // Dest First
+		      [](T tmp1, U tmp2){return tmp1 / ((T)tmp2);} );
+
       return(*plv);
     }
 
-    
-    /*
-      ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-      Interpreter for Element-wise Commands
-      ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    */
-
-    // Call an arbitrary function between two pvar's.
-    //pvar& element_wise(double (*function)(double,double), pvar& a);
-    pvar& forEachElement(opCode op, pvar& a){
- 
-      // Are the pvars the same shape?
-      assert(length == a.length);
-
-      //make a new pvar.
-      pvar* plv = new pvar(a);
-      T* tmpV{plv -> _v};
-      plv-> length= length;
-
-      // Code for dispatch table unsupported by nvcpp. Kept here for reference.
-      //static _void* dispatch_table[]  = { &&L100, &&L200 };
-      //goto *dispatch_table[0];
-  
-      {
-	switch(op){
-    
-	case opCode::add:
-	  // Addition loop
-
-#pragma acc kernels loop independent
-	  for (int i=0; i!=length; ++i)
-	    tmpV[i]= _v[i] + a._v[i];
-    
-	  break;
-
-
-	case opCode::mult :
-	  // Multiplication loop
-#pragma acc kernels loop independent
-	  for (int i=0; i!=length; ++i)
-	    tmpV[i]= _v[i] * a._v[i];
-    
-	  break;
-	}
-      }
-  
-      return(*plv); 
-    }
 
 
     /*
