@@ -158,11 +158,8 @@ inline std::string name(){return #FUNC;} }
     // Related to random handling
     //----------------------------------------------------------------------
 
-    /// A vector of random ints, one per element of the shape.
-    int* _vectorOfRandomInts{nullptr};
-    
     /// The actual max size for int pvar Rands  
-    int _halfMaxRandomInt{RAND_MAX/2};
+    const int _halfMaxRandomInt{RAND_MAX/2};
 
     /// Set up internal variables related to the power of two 
     /// 
@@ -178,6 +175,10 @@ inline std::string name(){return #FUNC;} }
     }
     
   public:
+    /// A vector of random ints, one per element of the shape.
+    // int* _vectorOfRandomInts{nullptr};
+    std::vector<int> _vectorOfRandomInts;
+    
     /// Constructor- new shape from data length
     shape(int x_size);
     //shape(int x_size, int y_size);
@@ -270,7 +271,7 @@ inline std::string name(){return #FUNC;} }
     void initPseudoRandom();
 
     /// Gets pointer to array of RandomInts 
-    int* getRandomInts();
+    //    int* getRandomInts();
 
     /// Updates the array with ( r(i) + (0.001)Rand_Max ) % (0.5 * rand_max)
     void pseudorandomize();
@@ -596,12 +597,6 @@ inline std::string name(){return #FUNC;} }
 			  _tmpvec.begin(),
 			  _tmpvec.end(),
 			  _pvec.begin(), (T) 0);
-      /*
-      for_each(std::execution::par_unseq, //std::execution::par_unseq,
-	       _pvec.begin(),
-	       _pvec.end(),
-	       [](T &n){ n=n-1; });
-      */
     }
 
 
@@ -789,7 +784,7 @@ inline std::string name(){return #FUNC;} }
      */
     void setToIndex(dimensionName dim){
       assert ( dim == dimensionName::x);
-  
+ 
 #pragma acc kernels loop independent
       for (int i=0; i!=length; ++i){
 	_v[i]= (T)i;
@@ -1222,7 +1217,38 @@ inline std::string name(){return #FUNC;} }
     /// For integral values, the resulting vector is between 0 and RANDOM_MAX/2.
     void setToRandom()
     {
-      int* random_v;
+      setToIndex( dimensionName::x );
+
+      int r{std::rand()};
+      double _pvarSize{ (double) length };
+  
+      if constexpr (std::is_floating_point<T>::value){
+	  double _shift{ (double) r };
+
+	  // Multiply each element id by a large random number then take
+	  // remainder of division by number of elements which gives
+	  // a number 0<=n<=number of elements. Thne divide by the number
+	  // of elements get number in range 0<=n<=1.
+	  std::for_each(std::execution::par_unseq,
+			_pvec.begin(),
+			_pvec.end(),
+			//[r](int& n){ n= ((n^r)&0xEFFF)+1; });
+			[_pvarSize, _shift](T& n){
+			  n= (T) std::fmod((n*_shift), _pvarSize)/_pvarSize;
+			});
+	}
+
+      if constexpr (std::is_integral<T>::value){
+	  std::for_each(std::execution::par_unseq,
+			_pvec.begin(),
+			_pvec.end(),
+			[_pvarSize,r](T& n){
+			  n= (((int)(std::fmod((double)n*(double)r, (double) INT_MAX)))^r);
+			});
+	}
+
+      /*
+      vector<int>* random_v;
       random_v= this-> getShape()-> getRandomInts();
       
 #pragma acc kernels loop independent
@@ -1233,9 +1259,34 @@ inline std::string name(){return #FUNC;} }
 	if constexpr (std::is_floating_point<T>::value)
 		       _v[i]= ((T) random_v[i])/((T) (RAND_MAX/2));
       }
- 
+      */
+      /*
+      if constexpr (std::is_integral<T>::value){
+	  std::transform( std::execution::par_unseq,
+			  myShape->_vectorOfRandomInts.begin(),
+			  myShape->_vectorOfRandomInts.end(),
+			  _pvec.begin(),
+			  [](int tmp1){return (T) tmp1;} );
+	}
+
+
+      if constexpr (std::is_floating_point<T>::value){
+	  std::transform( std::execution::par_unseq,
+			  myShape->_vectorOfRandomInts.begin(),
+			  myShape->_vectorOfRandomInts.end(),
+			  _pvec.begin(),
+			  [](int tmp1){
+			    return (T)tmp1; //((T) tmp1)/((T) (RAND_MAX/2));
+			  } );
+	}	  
+      
+
       // Pseudorandomize for the next call
       this-> getShape()-> pseudorandomize();
+      */
+
+      
+      
     }
 
 

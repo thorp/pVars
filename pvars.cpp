@@ -88,28 +88,62 @@ void shape::initPseudoRandom(){
   // ... simple-way-of-generating-normally-distributed
   // ... -random-numbers-with-curand-in-parallel-loop/165603
 
-  // Generate random ints on host.
-  _vectorOfRandomInts= new int[this-> countElements()];
+  // Parallel int array
+  // _vectorOfRandomInts{ new int[this-> countElements()] };
+  _vectorOfRandomInts.resize(this-> countElements());
+  
   std::srand(std::time(nullptr));
-
+  /*
+  // Generate random ints on host then individually move to parallel vector.
   for (int i=0; i != countElements(); ++i)
     _vectorOfRandomInts[i]= std::rand()/2;
+  */
+
+  std::vector<int> _tmpvec{std::vector<int>(this->countElements(),  1)};
+
+  std::exclusive_scan(std::execution::par_unseq,
+		      _tmpvec.begin(),
+		      _tmpvec.end(),
+		      _vectorOfRandomInts.begin(),
+		      0);
+  /*
+  int r{std::rand()};
+  
+  std::for_each(std::execution::par_unseq,
+		_vectorOfRandomInts.begin(),
+		_vectorOfRandomInts.end(),
+		//[r](int& n){ n= ((n^r)&0xEFFF)+1; });
+		[](int& n){ n= n+1; });
+  */
 }
 
 
-/// Gets pointer to array of RandomInts 
-int* shape::getRandomInts(){
-  return &_vectorOfRandomInts[0];
+/// Gets pointer to array of RandomInts
+/*
+std::vector<int>* shape::getRandomInts(){
+  // return &_vectorOfRandomInts[0];
+  return &_vectorOfRandomInts;
 }
-
+*/
 
 /// Updates the array with ( r(i) + (0.001)Rand_Max ) % (0.5 * rand_max)
 void shape::pseudorandomize(){
-  
+  /*
 #pragma acc kernels loop independent
   for (int i=0; i!= countElements() ; ++i){
     _vectorOfRandomInts[i]+= (_halfMaxRandomInt/19);
     // A prime palendrome, 75557!
     _vectorOfRandomInts[i]= _vectorOfRandomInts[i] % _halfMaxRandomInt;
   }
+  */
+
+  int _hm{RAND_MAX/2};
+  
+  std::for_each(std::execution::par_unseq,
+		_vectorOfRandomInts.begin(),
+		_vectorOfRandomInts.end(),
+		[_hm](int &n)
+		{ n= (n + ( _hm/19))
+		    % _hm;
+		});
 }
